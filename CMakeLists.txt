@@ -59,6 +59,8 @@ set_target_properties(nanoid PROPERTIES
     SOVERSION ${PROJECT_VERSION_MAJOR}
     # Export all symbols for shared builds on Windows.
     WINDOWS_EXPORT_ALL_SYMBOLS ON
+    # Lets the static library be linked into shared libraries.
+    POSITION_INDEPENDENT_CODE ON
     )
 
 #############################################

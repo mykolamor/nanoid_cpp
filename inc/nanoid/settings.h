@@ -2,7 +2,7 @@
 
 #define NANOID_VERSION_MAJOR 3
 #define NANOID_VERSION_MINOR 0
-#define NANOID_VERSION_PATCH 0
+#define NANOID_VERSION_PATCH 1
 
 // Namespace of nanoid's API.
 //

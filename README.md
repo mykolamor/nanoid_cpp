@@ -41,14 +41,14 @@ add_subdirectory(external/nanoid_cpp)
 
 ```cmake
 include(FetchContent)
-FetchContent_Declare(nanoid GIT_REPOSITORY https://github.com/mykolamor/nanoid_cpp GIT_TAG 3.0.0)
+FetchContent_Declare(nanoid GIT_REPOSITORY https://github.com/mykolamor/nanoid_cpp GIT_TAG 3.0.1)
 FetchContent_MakeAvailable(nanoid)
 ```
 
 **CPM.cmake:**
 
 ```cmake
-CPMAddPackage(NAME nanoid GITHUB_REPOSITORY mykolamor/nanoid_cpp GIT_TAG 3.0.0)
+CPMAddPackage(NAME nanoid GITHUB_REPOSITORY mykolamor/nanoid_cpp GIT_TAG 3.0.1)
 ```
 
 **vcpkg:** the port is in this repository, so point vcpkg at its `ports` folder
