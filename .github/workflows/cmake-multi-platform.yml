@@ -45,6 +45,7 @@ jobs:
         -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
         -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
         -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+        -DNANOID_BUILD_TESTS=ON
         -S ${{ github.workspace }}
 
     - name: Build
@@ -63,7 +64,7 @@ jobs:
 
     - name: Build and install nanoid
       run: |
-        cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DNANOID_BUILD_TESTS=OFF -DNANOID_BUILD_EXAMPLES=OFF
+        cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DNANOID_BUILD_EXAMPLES=OFF
         cmake --build build
         cmake --install build --prefix "${{ github.workspace }}/install"
 

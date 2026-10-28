@@ -17,7 +17,7 @@ else()
     set(NANOID_TOP_LEVEL OFF)
 endif()
 
-option(NANOID_BUILD_TESTS "Build nanoid unit tests" ${NANOID_TOP_LEVEL})
+option(NANOID_BUILD_TESTS "Build nanoid unit tests" OFF)
 option(NANOID_BUILD_EXAMPLES "Build nanoid usage examples" ${NANOID_TOP_LEVEL})
 option(NANOID_BUILD_CLI "Build the nanoid command-line tool" ${NANOID_TOP_LEVEL})
 option(NANOID_INSTALL "Generate nanoid install rules" ${NANOID_TOP_LEVEL})

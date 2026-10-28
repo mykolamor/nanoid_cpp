@@ -41,21 +41,21 @@ add_subdirectory(external/nanoid_cpp)
 
 ```cmake
 include(FetchContent)
-FetchContent_Declare(nanoid GIT_REPOSITORY https://github.com/mykolamor/nanoid_cpp GIT_TAG 4.0.0)
+FetchContent_Declare(nanoid GIT_REPOSITORY https://github.com/mykolamor/nanoid_cpp GIT_TAG 4.0.1)
 FetchContent_MakeAvailable(nanoid)
 ```
 
 **CPM.cmake:**
 
 ```cmake
-CPMAddPackage(NAME nanoid GITHUB_REPOSITORY mykolamor/nanoid_cpp GIT_TAG 4.0.0)
+CPMAddPackage(NAME nanoid GITHUB_REPOSITORY mykolamor/nanoid_cpp GIT_TAG 4.0.1)
 ```
 
 **vcpkg:** the port is in this repository, so point vcpkg at its `ports` folder
 (`--overlay-ports=<nanoid_cpp>/ports`, or `VCPKG_OVERLAY_PORTS`) and depend on `nanoid-cpp`.
 Then use `find_package(nanoid CONFIG REQUIRED)` as above.
 
-As a subproject, nanoid's tests, examples and install rules are off by default.
+As a subproject, nanoid's examples, command-line tool and install rules are off by default.
 Set `NANOID_INSTALL=ON` if your project installs targets that link nanoid.
 
 ## Usage
@@ -159,6 +159,14 @@ aabaccbbab
 ```
 
 Run `nanoid --help` for all options.
+
+## Tests
+
+The tests are off by default. They use Catch2, which is downloaded if it isn't installed:
+
+```sh
+cmake -B build -DNANOID_BUILD_TESTS=ON && cmake --build build && cd build && ctest
+```
 
 ## Credits
 
