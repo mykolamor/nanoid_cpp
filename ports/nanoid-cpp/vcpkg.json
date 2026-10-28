@@ -1,6 +1,6 @@
 {
   "name": "nanoid-cpp",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "A tiny, URL-friendly, unique string ID generator for C++",
   "homepage": "https://github.com/mykolamor/nanoid_cpp",
   "license": "MIT",
