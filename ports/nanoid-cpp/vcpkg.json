@@ -1,0 +1,17 @@
+{
+  "name": "nanoid-cpp",
+  "version": "3.0.0",
+  "description": "A tiny, URL-friendly, unique string ID generator for C++",
+  "homepage": "https://github.com/mykolamor/nanoid_cpp",
+  "license": "MIT",
+  "dependencies": [
+    {
+      "name": "vcpkg-cmake",
+      "host": true
+    },
+    {
+      "name": "vcpkg-cmake-config",
+      "host": true
+    }
+  ]
+}

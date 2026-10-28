@@ -1,0 +1,4 @@
+nanoid-cpp provides CMake targets:
+
+  find_package(nanoid CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE nanoid::nanoid)
