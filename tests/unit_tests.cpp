@@ -1,9 +1,10 @@
-#include <limits>
 #include <map>
 #include <random>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <thread>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -15,58 +16,24 @@
     #define NANOID_TEST_FORK
 #endif
 
-#define CATCH_CONFIG_MAIN
-#include "catch2/catch.h"
+#include <catch2/catch_approx.hpp>
+#include <catch2/catch_template_test_macros.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 namespace unit_tests
 {
-    static char const* default_dict = "_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    static std::size_t default_size = 21;
-
-    int clz32(int x)
-    {
-        const int numIntBits = sizeof(int) * 8; // compile time constant
-        // do the smearing
-        x |= x >> 1;
-        x |= x >> 2;
-        x |= x >> 4;
-        x |= x >> 8;
-        x |= x >> 16;
-        // count the ones
-        x -= x >> 1 & 0x55555555;
-        x = (x >> 2 & 0x33333333) + (x & 0x33333333);
-        x = (x >> 4) + x & 0x0f0f0f0f;
-        x += x >> 8;
-        x += x >> 16;
-        return numIntBits - (x & 0x0000003f); // subtract # of 1s from 32
-    }
+    static const std::string default_dict = "_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    static const std::size_t default_size = 21;
 
     class predefined_random : public NANOID_NAMESPACE::crypto_random_base
     {
-    public:
-        using result_type = std::uint32_t;
     private:
         std::vector<std::uint8_t> _sequence;
     public:
         predefined_random& operator=(const predefined_random& other) = delete;
         predefined_random(const predefined_random&) = delete;
         explicit predefined_random(std::vector<std::uint8_t> vec) : _sequence(std::move(vec)) {}
-
-        static constexpr result_type(min)()
-        {
-            return std::numeric_limits<std::uint32_t>::min();
-        }
-
-        static constexpr result_type(max)()
-        {
-            return std::numeric_limits<std::uint32_t>::max();
-        }
-
-        result_type operator()()
-        {
-            result_type res = _sequence[0];
-            return res;
-        }
 
         void next_bytes(std::uint8_t* buffer, std::size_t size) override
         {
@@ -157,11 +124,21 @@ namespace unit_tests
         for (std::size_t value = 0; value < counts.size(); ++value)
         {
             INFO("byte " << value << " appeared " << counts[value] << " times, expected " << expected);
-            CHECK((double)counts[value] == Approx(expected).epsilon(0.05));
+            CHECK((double)counts[value] == Catch::Approx(expected).epsilon(0.05));
         }
     }
 
     // Replays a fixed sequence of outputs in the range [Min, Max].
+    // Every character of id is in alphabet.
+    void check_uses_alphabet(const std::string& id, const std::string& alphabet)
+    {
+        for (char c : id)
+        {
+            INFO("id " << id << ", character " << c);
+            CHECK(alphabet.find(c) != std::string::npos);
+        }
+    }
+
     template <class T, T Min, T Max>
     class sequence_engine
     {
@@ -261,7 +238,7 @@ TEST_CASE("TestOsRandomSmallReads")
     for (std::size_t value = 0; value < counts.size(); ++value)
     {
         INFO("byte " << value);
-        CHECK((double)counts[value] == Approx(2090000.0 / 256.0).epsilon(0.06));
+        CHECK((double)counts[value] == Catch::Approx(2090000.0 / 256.0).epsilon(0.06));
     }
 }
 
@@ -368,15 +345,9 @@ TEST_CASE("TestCustomSize")
 TEST_CASE("TestCustomAlphabet")
 {
     const std::string alphabet = "1234abcd";
-
-    char buff[256];
-    snprintf(buff, sizeof(buff), "[%s]{%lu}$", alphabet.c_str(), unit_tests::default_size);
-    std::string regex = buff;
-
     std::string res = NANOID_NAMESPACE::generate(alphabet);
     REQUIRE(res.size() == unit_tests::default_size);
-    INFO(regex)
-    REQUIRE_THAT(res, Catch::Matches(regex));
+    unit_tests::check_uses_alphabet(res, alphabet);
 }
 
 TEST_CASE("TestCustomAlphabetAndSize")
@@ -384,14 +355,43 @@ TEST_CASE("TestCustomAlphabetAndSize")
     const std::string alphabet = "1234abcd";
     const std::size_t size = 7;
     std::string res = NANOID_NAMESPACE::generate(alphabet, size);
-
-    char buff[256];
-    snprintf(buff, sizeof(buff), "[%s]{%lu}$", alphabet.c_str(), size);
-    std::string regex = buff;
-
     REQUIRE(res.size() == size);
-    INFO(regex)
-    REQUIRE_THAT(res, Catch::Matches(regex));
+    unit_tests::check_uses_alphabet(res, alphabet);
+}
+
+// Every alphabet size reaches every symbol and nothing else,
+// which checks the index masking for each size, including the 256 maximum.
+TEST_CASE("TestEveryAlphabetSize")
+{
+    for (std::size_t length = 1; length <= 256; ++length)
+    {
+        // Symbols start at 1, so a stray '\0' from reading past the alphabet shows up.
+        std::string alphabet;
+        for (std::size_t i = 1; i <= length; ++i)
+        {
+            alphabet += static_cast<char>(i % 256);
+        }
+
+        // 400 IDs of 21 symbols: for 256 symbols, the chance of missing one is about 1e-12.
+        std::set<char> seen;
+        for (int i = 0; i < 400; ++i)
+        {
+            for (char c : NANOID_NAMESPACE::generate(alphabet))
+            {
+                seen.insert(c);
+            }
+        }
+        INFO("alphabet size " << length);
+        CHECK(seen == std::set<char>(alphabet.begin(), alphabet.end()));
+    }
+}
+
+TEST_CASE("TestInvalidArguments")
+{
+    CHECK_THROWS_AS(NANOID_NAMESPACE::generate(std::string()), std::invalid_argument);
+    CHECK_THROWS_AS(NANOID_NAMESPACE::generate(std::string(257, 'a')), std::invalid_argument);
+    CHECK_THROWS_AS(NANOID_NAMESPACE::generate(std::size_t(0)), std::invalid_argument);
+    CHECK_THROWS_AS(NANOID_NAMESPACE::generate_async(std::string()).get(), std::invalid_argument);
 }
 
 TEST_CASE("TestSingleLetterAlphabet")
@@ -407,7 +407,7 @@ TEST_CASE("TestPredefinedRandomSequence")
     const std::vector<std::uint8_t> seq{2, 255, 3, 7, 7, 7, 7, 7, 0, 1};
     unit_tests::predefined_random r(seq);
 
-    using tp = std::pair<int, std::string>;
+    using tp = std::pair<std::size_t, std::string>;
 
     auto tests = GENERATE(tp(4, "adca"), tp(18, "cbadcbadcbadcbadcc"));
 
@@ -418,71 +418,60 @@ TEST_CASE("TestPredefinedRandomSequence")
 
 TEST_CASE("TestAsyncGenerate")
 {
-    std::string res = NANOID_NAMESPACE::generate_async().get();
-    REQUIRE(res.size() == unit_tests::default_size);
+    const std::string alphabet = "1234abcd";
+
+    CHECK(NANOID_NAMESPACE::generate_async().get().size() == unit_tests::default_size);
+    CHECK(NANOID_NAMESPACE::generate_async(std::size_t(10)).get().size() == 10);
+
+    const std::string with_alphabet = NANOID_NAMESPACE::generate_async(alphabet).get();
+    CHECK(with_alphabet.size() == unit_tests::default_size);
+    unit_tests::check_uses_alphabet(with_alphabet, alphabet);
+
+    const std::string with_both = NANOID_NAMESPACE::generate_async(alphabet, 7).get();
+    CHECK(with_both.size() == 7);
+    unit_tests::check_uses_alphabet(with_both, alphabet);
 }
 
 TEST_CASE("TestGeneratesUrlFriendlyIDs")
 {
-    for (int i = 1; i <= 10; ++i)
+    for (int i = 0; i < 10; ++i)
     {
         std::string res = NANOID_NAMESPACE::generate();
         REQUIRE(res.size() == unit_tests::default_size);
-
-        for (std::size_t j = 0; j < res.size(); ++j)
-        {
-            REQUIRE(res.find(res[j]) != std::string::npos);
-        }
+        unit_tests::check_uses_alphabet(res, unit_tests::default_dict);
     }
 }
+
 TEST_CASE("TestHasNoCollisions")
 {
-    const int count = 100 * 1000;
-    std::map<std::string, bool> dictUsed;
-    int fails = 0;
-    for (std::size_t dummy = 1; dummy <= count; ++dummy)
+    const std::size_t count = 100 * 1000;
+    std::unordered_set<std::string> ids;
+    std::size_t collisions = 0;
+    for (std::size_t i = 0; i < count; ++i)
     {
-        std::string result = NANOID_NAMESPACE::generate();
-        auto it = dictUsed.find(result);
-        fails += (it != dictUsed.end());
-        dictUsed[result] = true;
+        collisions += ids.insert(NANOID_NAMESPACE::generate()).second ? 0 : 1;
     }
-    CHECK(fails == 0);
+    CHECK(collisions == 0);
 }
 
 TEST_CASE("TestFlatDistribution")
 {
-    const int count = 100 * 1000;
-    std::map<char, int> chars;
-    for (std::size_t dummy = 1; dummy <= count; ++dummy)
+    const std::size_t count = 100 * 1000;
+    std::map<char, std::size_t> chars;
+    for (std::size_t i = 0; i < count; ++i)
     {
-        auto id = NANOID_NAMESPACE::generate();
-        for (std::size_t i = 0; i < unit_tests::default_size; i++)
+        for (char c : NANOID_NAMESPACE::generate())
         {
-            auto c = id[i];
-            auto it = chars.find(c);
-            if (it == chars.end())
-            {
-                chars[c] = 0;
-            }
             chars[c] += 1;
         }
     }
 
-    for (auto c : chars)
+    REQUIRE(chars.size() == unit_tests::default_dict.size());
+    for (const auto& c : chars)
     {
-        auto distribution =
-            (double)(c.second * strlen(unit_tests::default_dict)) / (double)(count * unit_tests::default_size);
-        REQUIRE(distribution == Approx(1.0).epsilon(0.05));
-    }
-}
-
-TEST_CASE("TestMask")
-{
-    for (auto length = 1; length < 256; length++)
-    {
-        auto mask1 = (2 << (int)std::floor(std::log(length - 1) / std::log(2))) - 1;
-        auto mask2 = (2 << (31 - unit_tests::clz32((length - 1) | 1))) - 1;
-        REQUIRE(mask1 == mask2);
+        const double distribution =
+            (double)(c.second * unit_tests::default_dict.size()) / (double)(count * unit_tests::default_size);
+        INFO("character " << c.first);
+        CHECK(distribution == Catch::Approx(1.0).epsilon(0.05));
     }
 }

@@ -13,12 +13,3 @@ indent_size = 2
 
 [*.md]
 trim_trailing_whitespace = false
-
-# Third-party code keeps its own formatting.
-[vendor/**]
-charset = unset
-end_of_line = unset
-insert_final_newline = unset
-trim_trailing_whitespace = unset
-indent_style = unset
-indent_size = unset

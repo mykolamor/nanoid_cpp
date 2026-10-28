@@ -108,13 +108,31 @@ endif()
 #############################################
 # Unit tests
 if (NANOID_BUILD_TESTS)
-    add_subdirectory(vendor/catch2)
+    find_package(Catch2 3 QUIET)
+    if (Catch2_FOUND)
+        message(STATUS "Using installed Catch2 ${Catch2_VERSION} for tests")
+    else()
+        if (CMAKE_VERSION VERSION_LESS 3.16)
+            message(FATAL_ERROR "nanoid's tests need Catch2 3 installed, or CMake 3.16+ to download it. "
+                "Set NANOID_BUILD_TESTS=OFF to build without tests.")
+        endif()
+        include(FetchContent)
+        FetchContent_Declare(Catch2
+            URL https://github.com/catchorg/Catch2/archive/refs/tags/v3.16.1.tar.gz
+            URL_HASH SHA256=d16bd1b8b2364918bd472cb216394acb93bde6784890df0d91bccfb3f28d777d
+            )
+        FetchContent_MakeAvailable(Catch2)
+        message(STATUS "Downloaded Catch2 3.16.1 for tests")
+    endif()
+
     enable_testing()
     add_executable(nanoid_tests tests/unit_tests.cpp)
+    # Catch2 v3 needs C++14. The library itself stays C++11.
+    target_compile_features(nanoid_tests PRIVATE cxx_std_14)
 
     target_link_libraries(nanoid_tests
         nanoid::nanoid
-        Catch2::Test
+        Catch2::Catch2WithMain
         Threads::Threads
         )
 

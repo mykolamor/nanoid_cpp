@@ -9,9 +9,9 @@ A tiny, URL-friendly, unique string ID generator for C++, implementation of [ai'
 **Thread-safe.** The default generator can be used from any number of threads at once. See [Thread Safety](#thread-safety) for custom generators.
 
 **Compact.** It uses more symbols than UUID (`A-Za-z0-9_-`)
-and has the same number of unique options in just 22 symbols instead of 36.
+and has the same number of unique options in just 21 symbols instead of 36.
 
-**Fast.** Nanoid is as fast as UUID but can be used in URLs.
+**Fast.** An ID with default settings takes about 0.1 µs on Linux (measured on a Ryzen 9 5950X).
 
 ## Install
 
