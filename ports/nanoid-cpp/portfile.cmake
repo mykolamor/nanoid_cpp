@@ -6,7 +6,7 @@ vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO mykolamor/nanoid_cpp
     REF "${VERSION}"
-    SHA512 0
+    SHA512 20fc9cc9f87d60aff8a6cc13e0b7d0d8feb0edc1387b0b7c2f5e21e8bbf51bf3035684a2edb90f20c461b5bb5205a01d35f9d1294248355e0ca1c5ad7928f118
     HEAD_REF master
 )
 
