@@ -1,3 +1,4 @@
+#include <limits>
 #include <map>
 #include <random>
 #include <set>
@@ -391,7 +392,77 @@ TEST_CASE("TestInvalidArguments")
     CHECK_THROWS_AS(NANOID_NAMESPACE::generate(std::string()), std::invalid_argument);
     CHECK_THROWS_AS(NANOID_NAMESPACE::generate(std::string(257, 'a')), std::invalid_argument);
     CHECK_THROWS_AS(NANOID_NAMESPACE::generate(std::size_t(0)), std::invalid_argument);
-    CHECK_THROWS_AS(NANOID_NAMESPACE::generate_async(std::string()).get(), std::invalid_argument);
+}
+
+// A negative int passed as the size turns into a huge std::size_t.
+TEST_CASE("TestHugeSize")
+{
+    CHECK_THROWS_AS(NANOID_NAMESPACE::generate(std::numeric_limits<std::size_t>::max()), std::length_error);
+}
+
+// Sizes above one round of random bytes take several rounds.
+TEST_CASE("TestLongIds")
+{
+    const std::string alphabet = GENERATE(as<std::string>(), "abcd", "abcde");
+    const std::string id = NANOID_NAMESPACE::generate(alphabet, 5000);
+    REQUIRE(id.size() == 5000);
+    unit_tests::check_uses_alphabet(id, alphabet);
+}
+
+// Alphabet sizes that don't divide 256 need rejected bytes to keep every symbol equally likely.
+TEST_CASE("TestFlatDistributionUnevenAlphabet")
+{
+    std::string alphabet;
+    for (int i = 1; i <= 100; ++i)
+    {
+        alphabet += static_cast<char>(i);
+    }
+
+    std::map<char, std::size_t> counts;
+    const std::size_t count = 50000;
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        for (char c : NANOID_NAMESPACE::generate(alphabet))
+        {
+            counts[c] += 1;
+        }
+    }
+
+    // About 10,500 of each symbol. Chance moves that by ~1%, so the 5% margin doesn't fail
+    // on a correct implementation, while keeping all bytes would skew some by over 15%.
+    REQUIRE(counts.size() == alphabet.size());
+    const double expected = (double)(count * unit_tests::default_size) / (double)alphabet.size();
+    for (const auto& c : counts)
+    {
+        INFO("symbol " << (int)c.first);
+        CHECK((double)c.second == Catch::Approx(expected).epsilon(0.05));
+    }
+}
+
+TEST_CASE("TestUrlAlphabet")
+{
+    CHECK(std::string(NANOID_NAMESPACE::url_alphabet) == unit_tests::default_dict);
+}
+
+TEST_CASE("TestCustomAlphabetGenerator")
+{
+    const std::string alphabet = "abc";
+    const NANOID_NAMESPACE::custom_alphabet generate_id(alphabet, 10);
+
+    const std::string with_default_size = generate_id();
+    CHECK(with_default_size.size() == 10);
+    unit_tests::check_uses_alphabet(with_default_size, alphabet);
+
+    const std::string with_size = generate_id(5);
+    CHECK(with_size.size() == 5);
+    unit_tests::check_uses_alphabet(with_size, alphabet);
+
+    CHECK(NANOID_NAMESPACE::custom_alphabet("abc")().size() == unit_tests::default_size);
+
+    CHECK_THROWS_AS(generate_id(0), std::invalid_argument);
+    CHECK_THROWS_AS(NANOID_NAMESPACE::custom_alphabet(""), std::invalid_argument);
+    CHECK_THROWS_AS(NANOID_NAMESPACE::custom_alphabet(std::string(257, 'a')), std::invalid_argument);
+    CHECK_THROWS_AS(NANOID_NAMESPACE::custom_alphabet("abc", 0), std::invalid_argument);
 }
 
 TEST_CASE("TestSingleLetterAlphabet")
@@ -402,6 +473,7 @@ TEST_CASE("TestSingleLetterAlphabet")
     REQUIRE(res == "aaaaa");
 }
 
+// Expected IDs are from upstream nanoid's `customRandom` tests.
 TEST_CASE("TestPredefinedRandomSequence")
 {
     const std::vector<std::uint8_t> seq{2, 255, 3, 7, 7, 7, 7, 7, 0, 1};
@@ -409,27 +481,18 @@ TEST_CASE("TestPredefinedRandomSequence")
 
     using tp = std::pair<std::size_t, std::string>;
 
-    auto tests = GENERATE(tp(4, "adca"), tp(18, "cbadcbadcbadcbadcc"));
+    auto tests = GENERATE(tp(4, "cccc"), tp(18, "acccccdcbacccccdcb"));
 
     const std::string alphabet = "abcde";
 
     CHECK(NANOID_NAMESPACE::generate(r, alphabet, tests.first) == tests.second);
+    CHECK(NANOID_NAMESPACE::custom_alphabet(r, alphabet, tests.first)() == tests.second);
 }
 
-TEST_CASE("TestAsyncGenerate")
+TEST_CASE("TestPredefinedRandomSequencePowerOfTwo")
 {
-    const std::string alphabet = "1234abcd";
-
-    CHECK(NANOID_NAMESPACE::generate_async().get().size() == unit_tests::default_size);
-    CHECK(NANOID_NAMESPACE::generate_async(std::size_t(10)).get().size() == 10);
-
-    const std::string with_alphabet = NANOID_NAMESPACE::generate_async(alphabet).get();
-    CHECK(with_alphabet.size() == unit_tests::default_size);
-    unit_tests::check_uses_alphabet(with_alphabet, alphabet);
-
-    const std::string with_both = NANOID_NAMESPACE::generate_async(alphabet, 7).get();
-    CHECK(with_both.size() == 7);
-    unit_tests::check_uses_alphabet(with_both, alphabet);
+    unit_tests::predefined_random r({2, 255, 3, 7});
+    CHECK(NANOID_NAMESPACE::generate(r, "abcd", 4) == "dddc");
 }
 
 TEST_CASE("TestGeneratesUrlFriendlyIDs")

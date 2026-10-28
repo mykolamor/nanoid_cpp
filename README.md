@@ -28,7 +28,7 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build && cmake --inst
 ```
 
 ```cmake
-find_package(nanoid 3 CONFIG REQUIRED)
+find_package(nanoid 4 CONFIG REQUIRED)
 ```
 
 **Subproject or git submodule:**
@@ -41,14 +41,14 @@ add_subdirectory(external/nanoid_cpp)
 
 ```cmake
 include(FetchContent)
-FetchContent_Declare(nanoid GIT_REPOSITORY https://github.com/mykolamor/nanoid_cpp GIT_TAG 3.0.1)
+FetchContent_Declare(nanoid GIT_REPOSITORY https://github.com/mykolamor/nanoid_cpp GIT_TAG 4.0.0)
 FetchContent_MakeAvailable(nanoid)
 ```
 
 **CPM.cmake:**
 
 ```cmake
-CPMAddPackage(NAME nanoid GITHUB_REPOSITORY mykolamor/nanoid_cpp GIT_TAG 3.0.1)
+CPMAddPackage(NAME nanoid GITHUB_REPOSITORY mykolamor/nanoid_cpp GIT_TAG 4.0.0)
 ```
 
 **vcpkg:** the port is in this repository, so point vcpkg at its `ports` folder
@@ -81,17 +81,6 @@ std::string id = nanoid::generate(10);
 //id := "IRFa-VaY2b"
 ```
 
-### Async
-
-The async method runs `generate` on a new thread.
-
-```cpp
-auto id_fut = nanoid::generate_async();
-//unrelated code here
-std::string id = id_fut.get();
-//id := "Uakgb_J5m9g-0JDMbcJqLJ"
-```
-
 ### Custom Alphabet or Length
 
 If you want to change the ID's alphabet or length
@@ -106,6 +95,17 @@ The alphabet must contain 1 to 256 symbols.
 Multi-byte UTF-8 characters can't be used.
 Repeated symbols are allowed but make those symbols more likely.
 
+To generate many IDs with the same alphabet, create a generator once.
+It checks the alphabet when constructed:
+
+```cpp
+nanoid::custom_alphabet generate_id("1234567890abcdef", 10);
+std::string id = generate_id();        // 10 symbols
+std::string short_id = generate_id(5); // 5 symbols
+```
+
+The default alphabet is available as `nanoid::url_alphabet`.
+
 ### Custom Random Bytes Generator
 
 You can replace the default generator in two ways:
@@ -118,7 +118,7 @@ For instance, to use a seed-based generator:
 ```cpp
 nanoid::engine_random<std::mt19937> random(10);
 auto id = nanoid::generate(random, "abcdef", 10);
-//id := "bffffedeef"
+//id := "dddffadeab"
 ```
 
 `engine_random<G>` takes only uniformly random bytes from each output.
@@ -129,8 +129,7 @@ Use them only where IDs don't have to be unguessable, e.g. reproducible IDs in t
 
 ### Thread Safety
 
-The default generator is thread-safe: `generate()` and `generate_async()` can be called
-from any number of threads at once.
+The default generator is thread-safe: `generate()` can be called from any number of threads at once.
 
 When you pass your own generator, thread safety is up to that generator.
 `nanoid::engine_random<G>` is **not** thread-safe, because standard engines keep internal state.
@@ -147,6 +146,19 @@ For more uniform call times, build with `-DNANOID_RANDOM_BUFFER=OFF` (or define 
 To put the API in another namespace than `nanoid`, set `-DNANOID_NAMESPACE=your_namespace`.
 CMake passes it on to everything that links `nanoid::nanoid`.
 Without CMake, define `NANOID_NAMESPACE` identically for nanoid and all code using it, or linking fails.
+
+### Command Line
+
+nanoid also builds a `nanoid` command-line tool (`NANOID_BUILD_CLI`, on when nanoid is built on its own):
+
+```sh
+$ nanoid
+Uakgb_J5m9g-0JDMbcJqLJ
+$ nanoid --size 10 --alphabet abc
+aabaccbbab
+```
+
+Run `nanoid --help` for all options.
 
 ## Credits
 

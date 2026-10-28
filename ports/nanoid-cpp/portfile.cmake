@@ -15,7 +15,10 @@ vcpkg_cmake_configure(
     OPTIONS
         -DNANOID_BUILD_TESTS=OFF
         -DNANOID_BUILD_EXAMPLES=OFF
+        -DNANOID_BUILD_CLI=OFF
         -DNANOID_INSTALL=ON
+    MAYBE_UNUSED_VARIABLES
+        NANOID_BUILD_CLI
 )
 vcpkg_cmake_install()
 vcpkg_cmake_config_fixup(PACKAGE_NAME nanoid CONFIG_PATH "lib/cmake/nanoid")

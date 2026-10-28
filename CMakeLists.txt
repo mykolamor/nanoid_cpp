@@ -19,14 +19,12 @@ endif()
 
 option(NANOID_BUILD_TESTS "Build nanoid unit tests" ${NANOID_TOP_LEVEL})
 option(NANOID_BUILD_EXAMPLES "Build nanoid usage examples" ${NANOID_TOP_LEVEL})
+option(NANOID_BUILD_CLI "Build the nanoid command-line tool" ${NANOID_TOP_LEVEL})
 option(NANOID_INSTALL "Generate nanoid install rules" ${NANOID_TOP_LEVEL})
 option(NANOID_RANDOM_BUFFER "Buffer OS random bytes per thread on Linux. Faster on average, occasional slow refills" ON)
 set(NANOID_NAMESPACE "nanoid" CACHE STRING "C++ namespace of nanoid's API")
 
 include(GNUInstallDirs)
-
-set(THREADS_PREFER_PTHREAD_FLAG ON)
-find_package(Threads REQUIRED)
 
 add_library(nanoid
     src/nanoid/crypto_random.cpp
@@ -38,7 +36,6 @@ target_include_directories(nanoid PUBLIC
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     )
 target_compile_features(nanoid PUBLIC cxx_std_11)
-target_link_libraries(nanoid PRIVATE Threads::Threads)
 if (WIN32)
     # BCryptGenRandom
     target_link_libraries(nanoid PRIVATE bcrypt)
@@ -71,6 +68,13 @@ if (NANOID_BUILD_EXAMPLES AND NOT NANOID_NAMESPACE STREQUAL "nanoid")
 elseif (NANOID_BUILD_EXAMPLES)
     add_subdirectory(examples)
     message(STATUS "Added examples to build")
+endif()
+
+#############################################
+# Command-line tool
+if (NANOID_BUILD_CLI)
+    add_subdirectory(cli)
+    message(STATUS "Added command-line tool to build")
 endif()
 
 #############################################
@@ -110,6 +114,8 @@ endif()
 #############################################
 # Unit tests
 if (NANOID_BUILD_TESTS)
+    set(THREADS_PREFER_PTHREAD_FLAG ON)
+    find_package(Threads REQUIRED)
     find_package(Catch2 3 QUIET)
     if (Catch2_FOUND)
         message(STATUS "Using installed Catch2 ${Catch2_VERSION} for tests")
@@ -139,5 +145,15 @@ if (NANOID_BUILD_TESTS)
         )
 
     add_test(NAME nanoid_tests COMMAND nanoid_tests)
+    if (TARGET nanoid_cli)
+        add_test(NAME nanoid_cli_default COMMAND nanoid_cli)
+        set_tests_properties(nanoid_cli_default PROPERTIES PASS_REGULAR_EXPRESSION "^[A-Za-z0-9_-]+\n$")
+        add_test(NAME nanoid_cli_options COMMAND nanoid_cli --size 10 --alphabet abc)
+        set_tests_properties(nanoid_cli_options PROPERTIES PASS_REGULAR_EXPRESSION "^[abc][abc][abc][abc][abc][abc][abc][abc][abc][abc]\n$")
+        add_test(NAME nanoid_cli_version COMMAND nanoid_cli --version)
+        set_tests_properties(nanoid_cli_version PROPERTIES PASS_REGULAR_EXPRESSION "^${PROJECT_VERSION}\n$")
+        add_test(NAME nanoid_cli_bad_size COMMAND nanoid_cli --size -1)
+        set_tests_properties(nanoid_cli_bad_size PROPERTIES WILL_FAIL ON)
+    endif()
     message(STATUS "Added tests to build")
 endif()
