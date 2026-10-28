@@ -22,10 +22,10 @@ static std::mt19937 make_seeded_mt19937()
     return std::mt19937(seq);
 }
 
-// A crypto_random<G> instance is not thread-safe, so every thread gets its own.
-static nanoid::crypto_random<std::mt19937>& thread_random()
+// An engine_random<G> instance is not thread-safe, so every thread gets its own.
+static nanoid::engine_random<std::mt19937>& thread_random()
 {
-    thread_local nanoid::crypto_random<std::mt19937> random(make_seeded_mt19937());
+    thread_local nanoid::engine_random<std::mt19937> random(make_seeded_mt19937());
     return random;
 }
 

@@ -1,5 +1,5 @@
 # nanoid-cpp
-[![Build status](https://github.com/mcmikecreations/nanoid_cpp/actions/workflows/cmake-multi-platform.yml/badge.svg?branch=master)](actions)
+[![Build status](https://github.com/mykolamor/nanoid_cpp/actions/workflows/cmake-multi-platform.yml/badge.svg?branch=master)](https://github.com/mykolamor/nanoid_cpp/actions/workflows/cmake-multi-platform.yml)
 [![License](https://img.shields.io/badge/license-MIT%20License-blue.svg)](LICENSE)
 
 A tiny, URL-friendly, unique string ID generator for C++, implementation of [ai's](https://github.com/ai) [nanoid](https://github.com/ai/nanoid)!
@@ -15,11 +15,44 @@ and has the same number of unique options in just 22 symbols instead of 36.
 
 ## Install
 
-Install with cmake:
+nanoid needs CMake 3.10 or newer. Whichever way you add it, link the `nanoid::nanoid` target:
 
-1. Copy git repo to your destination
-2. Use `add_subdirectory` and `target_link_libraries` to add to your project.
-3. Or use `cmake` and `make` to build the project and use it as a library.
+```cmake
+target_link_libraries(your_target PRIVATE nanoid::nanoid)
+```
+
+**Installed package:**
+
+```sh
+cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build && cmake --install build
+```
+
+```cmake
+find_package(nanoid 2 CONFIG REQUIRED)
+```
+
+**Subproject or git submodule:**
+
+```cmake
+add_subdirectory(external/nanoid_cpp)
+```
+
+**FetchContent** (CMake 3.14+):
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(nanoid GIT_REPOSITORY https://github.com/mykolamor/nanoid_cpp GIT_TAG master)
+FetchContent_MakeAvailable(nanoid)
+```
+
+**CPM.cmake:**
+
+```cmake
+CPMAddPackage(NAME nanoid GITHUB_REPOSITORY mykolamor/nanoid_cpp GIT_TAG master)
+```
+
+As a subproject, nanoid's tests, examples and install rules are off by default.
+Set `NANOID_INSTALL=ON` if your project installs targets that link nanoid.
 
 ## Usage
 
@@ -46,7 +79,7 @@ std::string id = nanoid::generate(10);
 
 ### Async
 
-The async method can be used to simplify writing of asynchronous code.
+The async method runs `generate` on a new thread.
 
 ```cpp
 auto id_fut = nanoid::generate_async();
@@ -65,26 +98,26 @@ std::string id = nanoid::generate("1234567890abcdef", 10);
 //id := "4f90d13a42"
 ```
 
-Alphabet must contain 256 symbols or less.
-Otherwise, the generator will not be secure.
-
+The alphabet must contain 1 to 256 symbols.
+Multi-byte UTF-8 characters can't be used.
+Repeated symbols are allowed but make those symbols more likely.
 
 ### Custom Random Bytes Generator
 
 You can replace the default generator in two ways:
 
 - Derive from `nanoid::crypto_random_base` and implement `next_bytes`. See [examples/openssl](examples/openssl/openssl.cpp).
-- Wrap a standard random engine with `nanoid::crypto_random<G>`. See [examples/mt19937](examples/mt19937/mt19937.cpp).
+- Wrap a standard random engine with `nanoid::engine_random<G>`. See [examples/mt19937](examples/mt19937/mt19937.cpp).
 
 For instance, to use a seed-based generator:
 
 ```cpp
-nanoid::crypto_random<std::mt19937> random(10);
+nanoid::engine_random<std::mt19937> random(10);
 auto id = nanoid::generate(random, "abcdef", 10);
 //id := "bffffedeef"
 ```
 
-`crypto_random<G>` takes only uniformly random bytes from each output.
+`engine_random<G>` takes only uniformly random bytes from each output.
 The engine has to produce at least 8 random bits per call.
 Seed-based engines like `std::mt19937` are **not** cryptographically secure:
 their output [can be predicted](https://github.com/altf4/untwister) after observing enough IDs.
@@ -96,7 +129,7 @@ The default generator is thread-safe: `generate()` and `generate_async()` can be
 from any number of threads at once.
 
 When you pass your own generator, thread safety is up to that generator.
-`nanoid::crypto_random<G>` is **not** thread-safe, because standard engines keep internal state.
+`nanoid::engine_random<G>` is **not** thread-safe, because standard engines keep internal state.
 Give each thread its own instance (e.g. with `thread_local`), or guard a shared one with a mutex.
 Don't share one instance between concurrent `generate` calls.
 
@@ -104,6 +137,12 @@ Don't share one instance between concurrent `generate` calls.
 
 On Linux, the default generator buffers random bytes per thread, which is faster on average, but some calls are slower when the buffer refills.
 For more uniform call times, build with `-DNANOID_RANDOM_BUFFER=OFF` (or define `NANOID_DISABLE_RANDOM_BUFFER` without CMake).
+
+### Custom Namespace
+
+To put the API in another namespace than `nanoid`, set `-DNANOID_NAMESPACE=your_namespace`.
+CMake passes it on to everything that links `nanoid::nanoid`.
+Without CMake, define `NANOID_NAMESPACE` identically for nanoid and all code using it, or linking fails.
 
 ## Credits
 

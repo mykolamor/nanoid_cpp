@@ -1,0 +1,17 @@
+BasedOnStyle: Microsoft
+IndentWidth: 4
+UseTab: Never
+ColumnLimit: 120
+AccessModifierOffset: -4
+NamespaceIndentation: All
+IndentPPDirectives: BeforeHash
+PointerAlignment: Left
+SortIncludes: Never
+AlwaysBreakTemplateDeclarations: Yes
+AllowShortBlocksOnASingleLine: Empty
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLambdasOnASingleLine: All
+FixNamespaceComments: false
+EmptyLineBeforeAccessModifier: Leave
+AlignEscapedNewlines: Left

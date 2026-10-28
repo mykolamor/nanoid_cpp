@@ -10,32 +10,28 @@ jobs:
   build:
     runs-on: ${{ matrix.os }}
 
+    env:
+      BUILD_TYPE: Release
+
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        build_type: [Release]
-        c_compiler: [gcc, clang, cl]
         include:
-          - os: windows-latest
-            c_compiler: cl
-            cpp_compiler: cl
           - os: ubuntu-latest
             c_compiler: gcc
             cpp_compiler: g++
           - os: ubuntu-latest
             c_compiler: clang
             cpp_compiler: clang++
-        exclude:
           - os: windows-latest
-            c_compiler: gcc
-          - os: windows-latest
-            c_compiler: clang
-          - os: ubuntu-latest
             c_compiler: cl
+            cpp_compiler: cl
+          - os: macos-latest
+            c_compiler: clang
+            cpp_compiler: clang++
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v7
 
     - name: Set reusable strings
       id: strings
@@ -48,12 +44,34 @@ jobs:
         cmake -B ${{ steps.strings.outputs.build-output-dir }}
         -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
         -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
-        -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
         -S ${{ github.workspace }}
 
     - name: Build
-      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
+      run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ env.BUILD_TYPE }}
 
     - name: Test
       working-directory: ${{ steps.strings.outputs.build-output-dir }}
-      run: ctest --build-config ${{ matrix.build_type }}
+      run: ctest --build-config ${{ env.BUILD_TYPE }} --output-on-failure
+
+  # Installs nanoid and builds a separate project against it with find_package(nanoid).
+  package:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Build and install nanoid
+      run: |
+        cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DNANOID_BUILD_TESTS=OFF -DNANOID_BUILD_EXAMPLES=OFF
+        cmake --build build
+        cmake --install build --prefix "${{ github.workspace }}/install"
+
+    - name: Build consumer project
+      run: |
+        cmake -B consumer -S tests/package -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="${{ github.workspace }}/install"
+        cmake --build consumer
+
+    - name: Run consumer project
+      working-directory: consumer
+      run: ctest --output-on-failure

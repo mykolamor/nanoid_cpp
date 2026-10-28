@@ -1,80 +1,123 @@
-cmake_minimum_required(VERSION 3.5)
-project (nanoid_cpp
-    VERSION 2.1.0
+cmake_minimum_required(VERSION 3.10...3.31)
+
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/inc/nanoid/settings.h" NANOID_SETTINGS_H)
+foreach(part MAJOR MINOR PATCH)
+    string(REGEX MATCH "#define NANOID_VERSION_${part} ([0-9]+)" _ "${NANOID_SETTINGS_H}")
+    set(NANOID_VERSION_${part} ${CMAKE_MATCH_1})
+endforeach()
+
+project(nanoid_cpp
+    VERSION ${NANOID_VERSION_MAJOR}.${NANOID_VERSION_MINOR}.${NANOID_VERSION_PATCH}
+    LANGUAGES CXX
     )
 
-set(CMAKE_CXX_STANDARD 11)
+if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    set(NANOID_TOP_LEVEL ON)
+else()
+    set(NANOID_TOP_LEVEL OFF)
+endif()
+
+option(NANOID_BUILD_TESTS "Build nanoid unit tests" ${NANOID_TOP_LEVEL})
+option(NANOID_BUILD_EXAMPLES "Build nanoid usage examples" ${NANOID_TOP_LEVEL})
+option(NANOID_INSTALL "Generate nanoid install rules" ${NANOID_TOP_LEVEL})
+option(NANOID_RANDOM_BUFFER "Buffer OS random bytes per thread on Linux. Faster on average, occasional slow refills" ON)
+set(NANOID_NAMESPACE "nanoid" CACHE STRING "C++ namespace of nanoid's API")
+
+include(GNUInstallDirs)
+
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
-option(BUILD_TESTS "Build nanoid unit tests" ON)
-option(BUILD_EXAMPLES "Build nanoid usage examples" ON)
-option(NANOID_RANDOM_BUFFER "Buffer OS random bytes per thread on Linux. Faster on average, occasional slow refills" ON)
-
-add_subdirectory(vendor/catch2)
-
-file(GLOB_RECURSE NANOID_SRC_FILES src/*.cpp)
-file(GLOB_RECURSE NANOID_INC_FILES inc/*.h)
-
-add_library(nanoid ${NANOID_SRC_FILES})
+add_library(nanoid
+    src/nanoid/crypto_random.cpp
+    src/nanoid/nanoid.cpp
+    )
+add_library(nanoid::nanoid ALIAS nanoid)
 target_include_directories(nanoid PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
-  $<INSTALL_INTERFACE:inc>)
-target_link_libraries(nanoid Threads::Threads)
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    )
+target_compile_features(nanoid PUBLIC cxx_std_11)
+target_link_libraries(nanoid PRIVATE Threads::Threads)
 if (WIN32)
     # BCryptGenRandom
-    target_link_libraries(nanoid bcrypt)
+    target_link_libraries(nanoid PRIVATE bcrypt)
 endif()
 if (NOT NANOID_RANDOM_BUFFER)
     target_compile_definitions(nanoid PRIVATE NANOID_DISABLE_RANDOM_BUFFER)
 endif()
-#target_compile_options(nanoid PRIVATE
-#  $<$<CXX_COMPILER_ID:MSVC>:/W4>
-#  $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -pedantic>
-#)
+if (NOT NANOID_NAMESPACE STREQUAL "nanoid")
+    # PUBLIC, so code linking nanoid::nanoid sees the same namespace, also via find_package.
+    target_compile_definitions(nanoid PUBLIC NANOID_NAMESPACE=${NANOID_NAMESPACE})
+endif()
+target_compile_options(nanoid PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/W4>
+    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -pedantic>
+    )
+set_target_properties(nanoid PROPERTIES
+    VERSION ${PROJECT_VERSION}
+    SOVERSION ${PROJECT_VERSION_MAJOR}
+    # Export all symbols for shared builds on Windows.
+    WINDOWS_EXPORT_ALL_SYMBOLS ON
+    )
 
 #############################################
 # Examples
-if (BUILD_EXAMPLES)
+if (NANOID_BUILD_EXAMPLES AND NOT NANOID_NAMESPACE STREQUAL "nanoid")
+    # The examples are written against nanoid:: for readability.
+    message(STATUS "Skipping examples: they require NANOID_NAMESPACE=nanoid")
+elseif (NANOID_BUILD_EXAMPLES)
     add_subdirectory(examples)
     message(STATUS "Added examples to build")
 endif()
 
 #############################################
 # Install
-install(DIRECTORY inc/nanoid DESTINATION include)
-install(TARGETS nanoid EXPORT nanoid-targets)
-install(EXPORT nanoid-targets DESTINATION lib/cmake/nanoid)
+if (NANOID_INSTALL)
+    include(CMakePackageConfigHelpers)
+    set(NANOID_CMAKE_DIR ${CMAKE_INSTALL_LIBDIR}/cmake/nanoid)
 
-# # Config files for find_package()
-include(CMakePackageConfigHelpers)
-configure_package_config_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Config.cmake.in
-  "${CMAKE_CURRENT_BINARY_DIR}/nanoid-config.cmake"
-  INSTALL_DESTINATION lib/cmake/nanoid)
-write_basic_package_version_file(
-  "${CMAKE_CURRENT_BINARY_DIR}/nanoid-version.cmake"
-  VERSION "2.1.0"
-  COMPATIBILITY AnyNewerVersion)
-install(FILES
-  "${CMAKE_CURRENT_BINARY_DIR}/nanoid-config.cmake"
-  "${CMAKE_CURRENT_BINARY_DIR}/nanoid-version.cmake"
-  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindNanoid.cmake"
-  DESTINATION lib/cmake/nanoid)
-export(EXPORT nanoid-targets
-  FILE "${CMAKE_CURRENT_BINARY_DIR}/cmake/nanoid-targets.cmake")
+    install(DIRECTORY inc/nanoid DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+    install(TARGETS nanoid EXPORT nanoid-targets
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        )
+    install(EXPORT nanoid-targets
+        NAMESPACE nanoid::
+        DESTINATION ${NANOID_CMAKE_DIR}
+        )
 
+    # Config files for find_package()
+    configure_package_config_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Config.cmake.in
+        "${CMAKE_CURRENT_BINARY_DIR}/nanoid-config.cmake"
+        INSTALL_DESTINATION ${NANOID_CMAKE_DIR}
+        )
+    write_basic_package_version_file(
+        "${CMAKE_CURRENT_BINARY_DIR}/nanoid-config-version.cmake"
+        VERSION ${PROJECT_VERSION}
+        COMPATIBILITY SameMajorVersion
+        )
+    install(FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/nanoid-config.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/nanoid-config-version.cmake"
+        DESTINATION ${NANOID_CMAKE_DIR}
+        )
+endif()
 
 #############################################
 # Unit tests
-if (BUILD_TESTS)
+if (NANOID_BUILD_TESTS)
+    add_subdirectory(vendor/catch2)
     enable_testing()
     add_executable(nanoid_tests tests/unit_tests.cpp)
 
     target_link_libraries(nanoid_tests
-            nanoid
-            Catch2::Test
-            )
+        nanoid::nanoid
+        Catch2::Test
+        Threads::Threads
+        )
 
-    add_test(test_all nanoid_tests)
+    add_test(NAME nanoid_tests COMMAND nanoid_tests)
     message(STATUS "Added tests to build")
 endif()

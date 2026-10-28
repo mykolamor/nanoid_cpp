@@ -1,3 +1,4 @@
+#include <limits>
 #include <map>
 #include <random>
 #include <set>
@@ -9,34 +10,35 @@
 #include "nanoid/nanoid.h"
 
 #if defined(__unix__) || defined(__APPLE__)
-#include <sys/wait.h>
-#include <unistd.h>
-#define NANOID_TEST_FORK
+    #include <sys/wait.h>
+    #include <unistd.h>
+    #define NANOID_TEST_FORK
 #endif
 
 #define CATCH_CONFIG_MAIN
 #include "catch2/catch.h"
 
-namespace unit_tests {
+namespace unit_tests
+{
     static char const* default_dict = "_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
     static std::size_t default_size = 21;
 
     int clz32(int x)
     {
-        const int numIntBits = sizeof(int) * 8; //compile time constant
-        //do the smearing
+        const int numIntBits = sizeof(int) * 8; // compile time constant
+        // do the smearing
         x |= x >> 1;
         x |= x >> 2;
         x |= x >> 4;
         x |= x >> 8;
         x |= x >> 16;
-        //count the ones
+        // count the ones
         x -= x >> 1 & 0x55555555;
         x = (x >> 2 & 0x33333333) + (x & 0x33333333);
         x = (x >> 4) + x & 0x0f0f0f0f;
         x += x >> 8;
         x += x >> 16;
-        return numIntBits - (x & 0x0000003f); //subtract # of 1s from 32
+        return numIntBits - (x & 0x0000003f); // subtract # of 1s from 32
     }
 
     class predefined_random : public NANOID_NAMESPACE::crypto_random_base
@@ -50,15 +52,18 @@ namespace unit_tests {
         predefined_random(const predefined_random&) = delete;
         explicit predefined_random(std::vector<std::uint8_t> vec) : _sequence(std::move(vec)) {}
 
-        static constexpr result_type(min)() {
+        static constexpr result_type(min)()
+        {
             return std::numeric_limits<std::uint32_t>::min();
         }
 
-        static constexpr result_type(max)() {
+        static constexpr result_type(max)()
+        {
             return std::numeric_limits<std::uint32_t>::max();
         }
 
-        result_type operator()() {
+        result_type operator()()
+        {
             result_type res = _sequence[0];
             return res;
         }
@@ -68,15 +73,12 @@ namespace unit_tests {
             std::vector<std::uint8_t> bytes;
             for (std::size_t i = 0; i < size; i += _sequence.size())
             {
-                bytes.insert(
-                        std::end(bytes),
-                        std::begin(_sequence),
-                        std::begin(_sequence) + (long)std::min(size - i, _sequence.size())
-                );
+                bytes.insert(std::end(bytes), std::begin(_sequence),
+                             std::begin(_sequence) + (long)std::min(size - i, _sequence.size()));
             }
             for (std::size_t i = 0; i < size; ++i)
             {
-                //Have to revert order, because original uses reversed buffer, so double-reverse.
+                // Have to revert order, because original uses reversed buffer, so double-reverse.
                 buffer[i] = bytes[(size - i - 1)];
             }
         }
@@ -93,15 +95,18 @@ namespace unit_tests {
         using result_type = T;
         static constexpr std::size_t bytes = Bits / 8;
 
-        static constexpr result_type(min)() {
+        static constexpr result_type(min)()
+        {
             return 0;
         }
 
-        static constexpr result_type(max)() {
+        static constexpr result_type(max)()
+        {
             return static_cast<T>(~T(0) >> (sizeof(T) * 8 - Bits));
         }
 
-        result_type operator()() {
+        result_type operator()()
+        {
             ++_counter;
             return static_cast<T>(_counter * ((max)() / 0xFF));
         }
@@ -119,7 +124,7 @@ namespace unit_tests {
     template <class Engine>
     void check_byte_layout(std::size_t size)
     {
-        nanoid::crypto_random<Engine> random;
+        NANOID_NAMESPACE::engine_random<Engine> random;
 
         // Offset by one byte to exercise unaligned writes (with guard bytes on both sides).
         std::vector<std::uint8_t> storage(size + 2, 0xAA);
@@ -137,7 +142,7 @@ namespace unit_tests {
     template <class Engine>
     void check_flat_byte_distribution()
     {
-        nanoid::crypto_random<Engine> random(12345u);
+        NANOID_NAMESPACE::engine_random<Engine> random(12345u);
         std::vector<std::uint8_t> bytes(1 << 22);
         random.next_bytes(bytes.data(), bytes.size());
 
@@ -168,53 +173,57 @@ namespace unit_tests {
 
         explicit sequence_engine(std::vector<T> values) : _values(std::move(values)) {}
 
-        static constexpr result_type(min)() {
+        static constexpr result_type(min)()
+        {
             return Min;
         }
 
-        static constexpr result_type(max)() {
+        static constexpr result_type(max)()
+        {
             return Max;
         }
 
-        result_type operator()() {
+        result_type operator()()
+        {
             return _values[_next++ % _values.size()];
         }
     };
 }
 
-TEMPLATE_TEST_CASE("TestCryptoRandomNextBytes", "",
-    unit_tests::counting_engine_24, unit_tests::counting_engine_32_in_64, unit_tests::counting_engine_64)
+TEMPLATE_TEST_CASE("TestEngineRandomNextBytes", "", unit_tests::counting_engine_24,
+                   unit_tests::counting_engine_32_in_64, unit_tests::counting_engine_64)
 {
     unit_tests::check_byte_layout<TestType>(GENERATE(as<std::size_t>(), 0, 1, 2, 3, 4, 5, 7, 8, 9, 17, 35));
 }
 
 #ifdef __SIZEOF_INT128__
-TEST_CASE("TestCryptoRandomNextBytes128")
+TEST_CASE("TestEngineRandomNextBytes128")
 {
-    unit_tests::check_byte_layout<unit_tests::counting_engine_128>(GENERATE(as<std::size_t>(), 0, 1, 15, 16, 17, 33, 35));
+    unit_tests::check_byte_layout<unit_tests::counting_engine_128>(
+        GENERATE(as<std::size_t>(), 0, 1, 15, 16, 17, 33, 35));
 }
 #endif
 
-TEST_CASE("TestCryptoRandomRejectsBiasedOutputs")
+TEST_CASE("TestEngineRandomRejectsBiasedOutputs")
 {
     // 300 possible outputs: 256 map onto one byte evenly,
     // the other 44 would favour bytes 0..43 and must be skipped.
-    nanoid::crypto_random<unit_tests::sequence_engine<std::uint32_t, 0, 299>> random(
-        std::vector<std::uint32_t>{ 5, 256, 7, 299, 255, 0 });
+    NANOID_NAMESPACE::engine_random<unit_tests::sequence_engine<std::uint32_t, 0, 299>> random(
+        std::vector<std::uint32_t>{5, 256, 7, 299, 255, 0});
 
     std::vector<std::uint8_t> bytes(4);
     random.next_bytes(bytes.data(), bytes.size());
-    CHECK(bytes == std::vector<std::uint8_t>{ 5, 7, 255, 0 });
+    CHECK(bytes == std::vector<std::uint8_t>{5, 7, 255, 0});
 }
 
-TEST_CASE("TestCryptoRandomSubtractsMin")
+TEST_CASE("TestEngineRandomSubtractsMin")
 {
-    nanoid::crypto_random<unit_tests::sequence_engine<std::uint32_t, 10, 265>> random(
-        std::vector<std::uint32_t>{ 10, 265, 138 });
+    NANOID_NAMESPACE::engine_random<unit_tests::sequence_engine<std::uint32_t, 10, 265>> random(
+        std::vector<std::uint32_t>{10, 265, 138});
 
     std::vector<std::uint8_t> bytes(3);
     random.next_bytes(bytes.data(), bytes.size());
-    CHECK(bytes == std::vector<std::uint8_t>{ 0, 255, 128 });
+    CHECK(bytes == std::vector<std::uint8_t>{0, 255, 128});
 }
 
 // ranlux24 gives 24 random bits per call, minstd_rand a range that isn't a power of two.
@@ -226,11 +235,11 @@ TEMPLATE_TEST_CASE("TestStandardEnginesFlatByteDistribution", "", std::ranlux24,
 TEST_CASE("TestOsRandomSmallReads")
 {
     // Many small reads with sizes that don't divide evenly into any buffer, so reads straddle refills.
-    nanoid::os_random random;
+    NANOID_NAMESPACE::os_random random;
     std::vector<std::size_t> counts(256, 0);
     std::vector<std::uint8_t> chunk(97);
     std::vector<std::uint8_t> previous;
-    const std::size_t sizes[] = { 1, 34, 97, 13, 64 };
+    const std::size_t sizes[] = {1, 34, 97, 13, 64};
     for (std::size_t i = 0; i < 50000; ++i)
     {
         const std::size_t size = sizes[i % 5];
@@ -260,7 +269,7 @@ TEST_CASE("TestOsRandomSmallReads")
 TEST_CASE("TestForkedProcessesGenerateDifferentIds")
 {
     // Generate once so the parent has buffered random bytes before forking.
-    nanoid::generate();
+    NANOID_NAMESPACE::generate();
 
     const std::size_t count = 300;
     int fds[2];
@@ -274,7 +283,7 @@ TEST_CASE("TestForkedProcessesGenerateDifferentIds")
         std::string ids;
         for (std::size_t i = 0; i < count; ++i)
         {
-            ids += nanoid::generate();
+            ids += NANOID_NAMESPACE::generate();
         }
         const ssize_t written = write(fds[1], ids.data(), ids.size());
         _exit(written == (ssize_t)ids.size() ? 0 : 1);
@@ -284,7 +293,7 @@ TEST_CASE("TestForkedProcessesGenerateDifferentIds")
     std::set<std::string> parent_ids;
     for (std::size_t i = 0; i < count; ++i)
     {
-        parent_ids.insert(nanoid::generate());
+        parent_ids.insert(NANOID_NAMESPACE::generate());
     }
 
     std::string child_ids;
@@ -322,7 +331,7 @@ TEST_CASE("TestConcurrentGenerate")
         threads.emplace_back([&, t] {
             for (std::size_t i = 0; i < ids_per_thread; ++i)
             {
-                results[t].push_back(nanoid::generate());
+                results[t].push_back(NANOID_NAMESPACE::generate());
             }
         });
     }
@@ -345,14 +354,14 @@ TEST_CASE("TestConcurrentGenerate")
 
 TEST_CASE("TestDefault")
 {
-    std::string res = nanoid::generate();
+    std::string res = NANOID_NAMESPACE::generate();
     REQUIRE(res.size() == unit_tests::default_size);
 }
 
 TEST_CASE("TestCustomSize")
 {
     const std::size_t size = 10;
-    std::string res = nanoid::generate(size);
+    std::string res = NANOID_NAMESPACE::generate(size);
     REQUIRE(res.size() == size);
 }
 
@@ -364,7 +373,7 @@ TEST_CASE("TestCustomAlphabet")
     snprintf(buff, sizeof(buff), "[%s]{%lu}$", alphabet.c_str(), unit_tests::default_size);
     std::string regex = buff;
 
-    std::string res = nanoid::generate(alphabet);
+    std::string res = NANOID_NAMESPACE::generate(alphabet);
     REQUIRE(res.size() == unit_tests::default_size);
     INFO(regex)
     REQUIRE_THAT(res, Catch::Matches(regex));
@@ -374,7 +383,7 @@ TEST_CASE("TestCustomAlphabetAndSize")
 {
     const std::string alphabet = "1234abcd";
     const std::size_t size = 7;
-    std::string res = nanoid::generate(alphabet, size);
+    std::string res = NANOID_NAMESPACE::generate(alphabet, size);
 
     char buff[256];
     snprintf(buff, sizeof(buff), "[%s]{%lu}$", alphabet.c_str(), size);
@@ -389,13 +398,13 @@ TEST_CASE("TestSingleLetterAlphabet")
 {
     const std::string alphabet = "a";
     const std::size_t size = 5;
-    std::string res = nanoid::generate(alphabet, size);
+    std::string res = NANOID_NAMESPACE::generate(alphabet, size);
     REQUIRE(res == "aaaaa");
 }
 
 TEST_CASE("TestPredefinedRandomSequence")
 {
-    const std::vector<std::uint8_t> seq{ 2, 255, 3, 7, 7, 7, 7, 7, 0, 1 };
+    const std::vector<std::uint8_t> seq{2, 255, 3, 7, 7, 7, 7, 7, 0, 1};
     unit_tests::predefined_random r(seq);
 
     using tp = std::pair<int, std::string>;
@@ -404,12 +413,12 @@ TEST_CASE("TestPredefinedRandomSequence")
 
     const std::string alphabet = "abcde";
 
-    CHECK(nanoid::generate(r, alphabet, tests.first) == tests.second);
+    CHECK(NANOID_NAMESPACE::generate(r, alphabet, tests.first) == tests.second);
 }
 
 TEST_CASE("TestAsyncGenerate")
 {
-    std::string res = nanoid::generate_async().get();
+    std::string res = NANOID_NAMESPACE::generate_async().get();
     REQUIRE(res.size() == unit_tests::default_size);
 }
 
@@ -417,7 +426,7 @@ TEST_CASE("TestGeneratesUrlFriendlyIDs")
 {
     for (int i = 1; i <= 10; ++i)
     {
-        std::string res = nanoid::generate();
+        std::string res = NANOID_NAMESPACE::generate();
         REQUIRE(res.size() == unit_tests::default_size);
 
         for (std::size_t j = 0; j < res.size(); ++j)
@@ -433,7 +442,7 @@ TEST_CASE("TestHasNoCollisions")
     int fails = 0;
     for (std::size_t dummy = 1; dummy <= count; ++dummy)
     {
-        std::string result = nanoid::generate();
+        std::string result = NANOID_NAMESPACE::generate();
         auto it = dictUsed.find(result);
         fails += (it != dictUsed.end());
         dictUsed[result] = true;
@@ -447,7 +456,7 @@ TEST_CASE("TestFlatDistribution")
     std::map<char, int> chars;
     for (std::size_t dummy = 1; dummy <= count; ++dummy)
     {
-        auto id = nanoid::generate();
+        auto id = NANOID_NAMESPACE::generate();
         for (std::size_t i = 0; i < unit_tests::default_size; i++)
         {
             auto c = id[i];
@@ -462,7 +471,8 @@ TEST_CASE("TestFlatDistribution")
 
     for (auto c : chars)
     {
-        auto distribution = (double)(c.second * strlen(unit_tests::default_dict)) / (double)(count * unit_tests::default_size);
+        auto distribution =
+            (double)(c.second * strlen(unit_tests::default_dict)) / (double)(count * unit_tests::default_size);
         REQUIRE(distribution == Approx(1.0).epsilon(0.05));
     }
 }

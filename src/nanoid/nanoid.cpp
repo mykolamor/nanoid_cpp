@@ -1,147 +1,125 @@
 #include "nanoid/nanoid.h"
 #include <cmath>
 #include <future>
-#include <random>
-#include <type_traits>
+#include <stdexcept>
 #include <vector>
 
-namespace impl
+namespace NANOID_NAMESPACE
 {
-    static std::string default_dict = "_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    static std::size_t default_size = 21;
-    static NANOID_NAMESPACE::os_random random;
-    int clz32(int x);
+    namespace
+    {
+        const std::size_t default_size = 21;
 
-    using gen_func_type = std::string(*)(NANOID_NAMESPACE::crypto_random_base&, const std::string&, std::size_t);
-}
+        const std::string& default_alphabet()
+        {
+            static const std::string alphabet = "_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            return alphabet;
+        }
 
-int impl::clz32(int x)
-{
-	const int numIntBits = sizeof(int) * 8; //compile time constant
-	//do the smearing
-	x |= x >> 1;
-	x |= x >> 2;
-	x |= x >> 4;
-	x |= x >> 8;
-	x |= x >> 16;
-	//count the ones
-	x -= x >> 1 & 0x55555555;
-	x = (x >> 2 & 0x33333333) + (x & 0x33333333);
-	x = (x >> 4) + x & 0x0f0f0f0f;
-	x += x >> 8;
-	x += x >> 16;
-	return numIntBits - (x & 0x0000003f); //subtract # of 1s from 32
+        crypto_random_base& default_random()
+        {
+            // Thread-safe, so sharing it between threads and std::async tasks is safe.
+            static os_random random;
+            return random;
+        }
+
+        // Smallest 2^k - 1 that is at least value.
+        std::size_t mask_covering(std::size_t value)
+        {
+            std::size_t mask = 1;
+            while (mask < value)
+            {
+                mask = (mask << 1) | 1;
+            }
+            return mask;
+        }
+    }
 }
 
 std::string NANOID_NAMESPACE::generate()
 {
-	return generate(impl::random, impl::default_dict, impl::default_size);
+    return generate(default_random(), default_alphabet(), default_size);
 }
 std::string NANOID_NAMESPACE::generate(const std::string& alphabet)
 {
-	return generate(impl::random, alphabet, impl::default_size);
+    return generate(default_random(), alphabet, default_size);
 }
 std::string NANOID_NAMESPACE::generate(std::size_t size)
 {
-	return generate(impl::random, impl::default_dict, size);
+    return generate(default_random(), default_alphabet(), size);
 }
 std::string NANOID_NAMESPACE::generate(const std::string& alphabet, std::size_t size)
 {
-	return generate(impl::random, alphabet, size);
+    return generate(default_random(), alphabet, size);
 }
 
 std::future<std::string> NANOID_NAMESPACE::generate_async()
 {
-	return std::async
-	( 
-		(impl::gen_func_type)(generate),
-		std::ref(static_cast<NANOID_NAMESPACE::crypto_random_base&>(impl::random)),
-		std::cref(impl::default_dict), impl::default_size
-	);
+    return std::async(std::launch::async, [] { return generate(); });
 }
 std::future<std::string> NANOID_NAMESPACE::generate_async(const std::string& alphabet)
 {
-	return std::async
-	(
-		(impl::gen_func_type)(generate),
-		std::ref(static_cast<NANOID_NAMESPACE::crypto_random_base&>(impl::random)),
-		alphabet, impl::default_size
-	);
+    return std::async(std::launch::async, [alphabet] { return generate(alphabet); });
 }
 std::future<std::string> NANOID_NAMESPACE::generate_async(std::size_t size)
 {
-	return std::async
-	(
-		(impl::gen_func_type)(generate),
-		std::ref(static_cast<NANOID_NAMESPACE::crypto_random_base&>(impl::random)),
-		std::cref(impl::default_dict), size
-	);
+    return std::async(std::launch::async, [size] { return generate(size); });
 }
 std::future<std::string> NANOID_NAMESPACE::generate_async(const std::string& alphabet, std::size_t size)
 {
-	return std::async
-	(
-		(impl::gen_func_type)(generate),
-		std::ref(static_cast<NANOID_NAMESPACE::crypto_random_base&>(impl::random)),
-		alphabet, size
-	);
+    return std::async(std::launch::async, [alphabet, size] { return generate(alphabet, size); });
 }
 
 std::string NANOID_NAMESPACE::generate(crypto_random_base& random)
 {
-	return generate(random, impl::default_dict, impl::default_size);
+    return generate(random, default_alphabet(), default_size);
 }
 std::string NANOID_NAMESPACE::generate(crypto_random_base& random, const std::string& alphabet)
 {
-	return generate(random, alphabet, impl::default_size);
+    return generate(random, alphabet, default_size);
 }
 std::string NANOID_NAMESPACE::generate(crypto_random_base& random, std::size_t size)
 {
-	return generate(random, impl::default_dict, size);
+    return generate(random, default_alphabet(), size);
 }
 std::string NANOID_NAMESPACE::generate(crypto_random_base& random, const std::string& alphabet, std::size_t size)
 {
-    if (alphabet.empty() || alphabet.size() >= 256)
+    if (alphabet.empty() || alphabet.size() > 256)
     {
-        throw std::invalid_argument("alphabet must contain between 1 and 255 symbols.");
+        throw std::invalid_argument("alphabet must contain between 1 and 256 symbols.");
     }
 
-    if (size <= 0)
+    if (size == 0)
     {
         throw std::invalid_argument("size must be greater than zero.");
     }
 
-	std::size_t alphSize = alphabet.size();
+    const std::size_t alphabet_size = alphabet.size();
 
-    // See https://github.com/ai/nanoid/blob/main/README.md#Security for
-    // explanation why masking is use (`random % alphabet` is a common
+    // See https://github.com/ai/nanoid/blob/main/README.md#security for
+    // explanation why masking is used (`random % alphabet` is a common
     // mistake security-wise).
-    const std::size_t mask = (  2 << (31 - impl::clz32(    (int)((alphSize - 1) | 1)    ))  ) - 1;
-    const auto step = (std::size_t)std::ceil(1.6 * (double)mask * (double)size / (double)alphSize);
+    const std::size_t mask = mask_covering(alphabet_size - 1);
+    const auto step = static_cast<std::size_t>(std::ceil(1.6 * (double)mask * (double)size / (double)alphabet_size));
 
-    auto idBuilder = std::string(size, '_');
-    auto bytes = std::vector<std::uint8_t>(step);
-
-	std::size_t cnt = 0;
+    std::string id(size, '_');
+    std::vector<std::uint8_t> bytes(step);
+    std::size_t count = 0;
 
     while (true)
     {
-
         random.next_bytes(bytes.data(), bytes.size());
 
         for (std::size_t i = 0; i < step; i++)
         {
+            const std::size_t alphabet_index = bytes[i] & mask;
+            if (alphabet_index >= alphabet_size) continue;
 
-			std::size_t alphabetIndex = bytes[i] & mask;
-
-            if (alphabetIndex >= alphSize) continue;
-            idBuilder[cnt] = alphabet[alphabetIndex];
-            if (++cnt == size)
+            id[count] = alphabet[alphabet_index];
+            if (++count == size)
             {
-                return  { idBuilder };
+                return id;
             }
-
         }
-
     }
 }
