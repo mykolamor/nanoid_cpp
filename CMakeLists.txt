@@ -9,6 +9,7 @@ find_package(Threads REQUIRED)
 
 option(BUILD_TESTS "Build nanoid unit tests" ON)
 option(BUILD_EXAMPLES "Build nanoid usage examples" ON)
+option(NANOID_RANDOM_BUFFER "Buffer OS random bytes per thread on Linux. Faster on average, occasional slow refills" ON)
 
 add_subdirectory(vendor/catch2)
 
@@ -20,6 +21,13 @@ target_include_directories(nanoid PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
   $<INSTALL_INTERFACE:inc>)
 target_link_libraries(nanoid Threads::Threads)
+if (WIN32)
+    # BCryptGenRandom
+    target_link_libraries(nanoid bcrypt)
+endif()
+if (NOT NANOID_RANDOM_BUFFER)
+    target_compile_definitions(nanoid PRIVATE NANOID_DISABLE_RANDOM_BUFFER)
+endif()
 #target_compile_options(nanoid PRIVATE
 #  $<$<CXX_COMPILER_ID:MSVC>:/W4>
 #  $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -pedantic>

@@ -9,7 +9,7 @@ namespace impl
 {
     static std::string default_dict = "_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
     static std::size_t default_size = 21;
-    static NANOID_NAMESPACE::crypto_random<std::mt19937> random(std::random_device{}());
+    static NANOID_NAMESPACE::os_random random;
     int clz32(int x);
 
     using gen_func_type = std::string(*)(NANOID_NAMESPACE::crypto_random_base&, const std::string&, std::size_t);
