@@ -6,7 +6,7 @@ vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO mykolamor/nanoid_cpp
     REF "${VERSION}"
-    SHA512 81588b49ac19d7d5bf7f1721999235839c5415a595d909a9e2b6a7f80b8a0039bbfddfc782648d66f18b0f857e5999826884c7db3d8dc9264e6faea9077e7778
+    SHA512 09a70b7daec19508d435852490085a22da1fd4a64f2456d4422484fd2a265eb4a0d9bae4ac06acdfa23d94fb68f3d94b1d4930861e47f11fad2d04e573f9aed7
     HEAD_REF master
 )
 
@@ -17,8 +17,6 @@ vcpkg_cmake_configure(
         -DNANOID_BUILD_EXAMPLES=OFF
         -DNANOID_BUILD_CLI=OFF
         -DNANOID_INSTALL=ON
-    MAYBE_UNUSED_VARIABLES
-        NANOID_BUILD_CLI
 )
 vcpkg_cmake_install()
 vcpkg_cmake_config_fixup(PACKAGE_NAME nanoid CONFIG_PATH "lib/cmake/nanoid")
